@@ -1,0 +1,220 @@
+{
+	"info": {
+		"_postman_id": "sound-horee-backend-2026",
+		"name": "Sound Horee Backend API",
+		"description": "Collection API untuk Project Sound Horee (PT Algoritma Kita Digital).\n\nFitur:\n- Auto Token Save (Jalankan Login dulu, token otomatis tersimpan)\n- Transaction Sync\n- Reporting",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login / Register (Get Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"",
+									"// Cek jika login sukses",
+									"if (jsonData.status === \"success\") {",
+									"    // Simpan Token & UID ke Variable Collection otomatis",
+									"    pm.collectionVariables.set(\"token\", jsonData.token);",
+									"    pm.collectionVariables.set(\"user_uid\", jsonData.user.uid);",
+									"    console.log(\"Token & UID berhasil disimpan otomatis!\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"uid\": \"user_yudha_01\",\n    \"email\": \"yudha.dev@algoritma.co.id\",\n    \"store_name\": \"Toko Yudha Official\",\n    \"phone_number\": \"081299998888\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Endpoint ini menangani Login (jika user ada) atau Register (jika user baru).\nResponse token akan otomatis disimpan ke variable collection."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Profile",
+			"item": [
+				{
+					"name": "Sync Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"uid\": \"{{user_uid}}\",\n    \"email\": \"yudha.update@algoritma.co.id\",\n    \"store_name\": \"Toko Yudha Maju Jaya\",\n    \"phone_number\": \"081233334444\",\n    \"category\": \"Retail Modern\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/profile/sync",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profile",
+								"sync"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile Info",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile/{{user_uid}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profile",
+								"{{user_uid}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Transactions",
+			"item": [
+				{
+					"name": "Sync Transactions (Batch)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n    {\n        \"user_id\": \"{{user_uid}}\",\n        \"source_app\": \"id.dana\",\n        \"amount\": 50000,\n        \"raw_message\": \"DANA Masuk Rp 50.000\",\n        \"timestamp\": 1707800000000,\n        \"is_trial_limited\": false\n    },\n    {\n        \"user_id\": \"{{user_uid}}\",\n        \"source_app\": \"com.bca\",\n        \"amount\": 1500000,\n        \"raw_message\": \"Transfer BCA Rp 1.500.000\",\n        \"timestamp\": 1707805000000,\n        \"is_trial_limited\": false\n    }\n]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions/sync",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions",
+								"sync"
+							]
+						},
+						"description": "Kirim array transaksi offline ke server."
+					},
+					"response": []
+				},
+				{
+					"name": "Get History (Filter Harian/Range)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/transactions?user_id={{user_uid}}&start=1700000000000&end=1800000000000",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_uid}}"
+								},
+								{
+									"key": "start",
+									"value": "1700000000000",
+									"description": "Epoch Millis Start"
+								},
+								{
+									"key": "end",
+									"value": "1800000000000",
+									"description": "Epoch Millis End"
+								}
+							]
+						},
+						"description": "Ambil data transaksi dengan filter tanggal."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_uid",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
