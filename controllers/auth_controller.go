@@ -9,49 +9,73 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type LoginRequest struct {
-	UID         string `json:"uid" binding:"required"`
-	Email       string `json:"email" binding:"required"`
+type LoginInput struct {
+	UID         string `json:"uid"`
+	Email       string `json:"email"`
 	StoreName   string `json:"store_name"`
 	PhoneNumber string `json:"phone_number"`
+	Category    string `json:"category"`
 }
 
 func LoginOrRegister(c *gin.Context) {
-	var input LoginRequest
+	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 1. Cek apakah user sudah ada di database?
 	var user models.Profile
-	result := config.DB.First(&user, "uid = ?", input.UID)
+	// 1. Cari berdasarkan UID
+	result := config.DB.Where("uid = ?", input.UID).First(&user)
 
 	if result.RowsAffected == 0 {
-		// --- REGISTER (User Baru) ---
+		// --- REGISTER (User Benar-benar Baru) ---
 		user = models.Profile{
 			UID:         input.UID,
 			Email:       input.Email,
-			StoreName:   input.StoreName, // Default dari nama Google
+			StoreName:   input.StoreName,
 			PhoneNumber: input.PhoneNumber,
-			JoinedAt:    utils.NowMillis(), // Helper timestamp (opsional) atau time.Now().UnixMilli()
-			IsPremium:   false,
+			Category:    input.Category,
+			JoinedAt:    utils.NowMillis(),
 		}
-		config.DB.Create(&user)
+		if err := config.DB.Create(&user).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat user"})
+			return
+		}
 	} else {
 		// --- LOGIN (User Lama) ---
-		// Opsional: Update email kalau berubah di Google
-		config.DB.Model(&user).Update("email", input.Email)
+		// Hanya update jika input tidak kosong (Silent Check logic)
+		updates := make(map[string]interface{})
+		if input.Email != "" {
+			updates["email"] = input.Email
+		}
+		if input.StoreName != "" {
+			updates["store_name"] = input.StoreName
+		}
+		if input.PhoneNumber != "" {
+			updates["phone_number"] = input.PhoneNumber
+		}
+		if input.Category != "" {
+			updates["category"] = input.Category
+		}
+
+		if len(updates) > 0 {
+			// Update ke database
+			config.DB.Model(&user).Updates(updates)
+			// Refresh data 'user' di memori agar sinkron dengan yang ada di DB
+			config.DB.First(&user, "uid = ?", input.UID)
+		}
 	}
 
 	// 2. Generate JWT Token
 	token, err := utils.GenerateToken(user.UID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate token"})
 		return
 	}
 
-	// 3. Kirim Token + Data User ke Android
+	// 3. Response JSON (Sangat Krusial untuk Android)
+	// Pastikan field "user" berisi object Profile lengkap
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"token":  token,
