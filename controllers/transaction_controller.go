@@ -41,10 +41,8 @@ func GetTransactions(c *gin.Context) {
 		return
 	}
 
-	// Initialize query builder
 	query := config.DB.Where("user_id = ?", userID)
 
-	// Filter: Date Range (Epoch Milliseconds)
 	startStr := c.Query("start")
 	endStr := c.Query("end")
 
@@ -54,28 +52,19 @@ func GetTransactions(c *gin.Context) {
 		query = query.Where("timestamp BETWEEN ? AND ?", start, end)
 	}
 
-	// Filter: Source App (e.g., "DANA", "BCA")
 	if sourceApp := c.Query("source_app"); sourceApp != "" {
 		query = query.Where("source_app LIKE ?", "%"+sourceApp+"%")
 	}
 
-	// Execute query
 	var transactions []models.Transaction
 	if err := query.Order("timestamp desc").Find(&transactions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Calculate Summary
-	var totalAmount float64 = 0
-	for _, trx := range transactions {
-		totalAmount += trx.Amount
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":       "success",
-		"count":        len(transactions),
-		"total_amount": totalAmount,
-		"data":         transactions,
-	})
+	// --- PERBAIKAN DISINI ---
+	// Langsung kirim []transactions agar Android bisa parsing 'as List<TransactionDto>'
+	// Jika Mas tetap ingin kirim status & total_amount, Android-nya yang harus dirombak total.
+	// Karena Mas minta jangan nyenggol sana-sini, kita samakan Go dengan ekspektasi Android.
+	c.JSON(http.StatusOK, transactions)
 }

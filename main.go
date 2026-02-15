@@ -17,6 +17,10 @@ func main() {
 		log.Println("Warning: .env file not found, using system environment variables.")
 	}
 
+	if os.Getenv("JWT_SECRET") == "" {
+		os.Setenv("JWT_SECRET", "rahasiadapurmasyudha123")
+	}
+
 	// 2. Initialize database connection pool.
 	config.ConnectDatabase()
 

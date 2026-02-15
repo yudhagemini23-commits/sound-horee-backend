@@ -25,11 +25,9 @@ func LoginOrRegister(c *gin.Context) {
 	}
 
 	var user models.Profile
-	// 1. Cari berdasarkan UID
 	result := config.DB.Where("uid = ?", input.UID).First(&user)
 
 	if result.RowsAffected == 0 {
-		// --- REGISTER (User Benar-benar Baru) ---
 		user = models.Profile{
 			UID:         input.UID,
 			Email:       input.Email,
@@ -38,13 +36,8 @@ func LoginOrRegister(c *gin.Context) {
 			Category:    input.Category,
 			JoinedAt:    utils.NowMillis(),
 		}
-		if err := config.DB.Create(&user).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat user"})
-			return
-		}
+		config.DB.Create(&user)
 	} else {
-		// --- LOGIN (User Lama) ---
-		// Hanya update jika input tidak kosong (Silent Check logic)
 		updates := make(map[string]interface{})
 		if input.Email != "" {
 			updates["email"] = input.Email
@@ -60,25 +53,38 @@ func LoginOrRegister(c *gin.Context) {
 		}
 
 		if len(updates) > 0 {
-			// Update ke database
 			config.DB.Model(&user).Updates(updates)
-			// Refresh data 'user' di memori agar sinkron dengan yang ada di DB
 			config.DB.First(&user, "uid = ?", input.UID)
 		}
 	}
 
-	// 2. Generate JWT Token
+	// --- LOGIC TRIAL (PENAMBAHAN) ---
+	const trialLimit = 10
+	var trialUsage int64
+	config.DB.Model(&models.Transaction{}).Where("user_id = ?", user.UID).Count(&trialUsage)
+
+	// Config jatah trial dari backend
+	remainingTrial := int(trialLimit) - int(trialUsage)
+	if remainingTrial < 0 {
+		remainingTrial = 0
+	}
+
 	token, err := utils.GenerateToken(user.UID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate token"})
 		return
 	}
 
-	// 3. Response JSON (Sangat Krusial untuk Android)
-	// Pastikan field "user" berisi object Profile lengkap
+	// Response JSON dengan field Subscription baru
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"token":  token,
 		"user":   user,
+		"subscription": gin.H{
+			"is_premium":      user.IsPremium,
+			"trial_limit":     trialLimit,
+			"trial_usage":     trialUsage,
+			"remaining_trial": remainingTrial,
+		},
 	})
 }

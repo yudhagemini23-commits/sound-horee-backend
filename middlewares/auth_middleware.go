@@ -12,30 +12,40 @@ import (
 
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. Ambil token dari Header: "Authorization: Bearer <token>"
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
 			return
 		}
 
-		// 2. Bersihkan string "Bearer "
 		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
 
-		// 3. Validasi Token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method")
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
+			// Pastikan os.Getenv("JWT_SECRET") Mas sudah ter-set di environment atau .env
 			return []byte(os.Getenv("JWT_SECRET")), nil
 		})
 
+		// --- PERBAIKAN DI SINI ---
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return
 		}
 
-		// 4. Token Valid -> Lanjut ke Controller
+		// Ekstrak UID dari claims
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			// Pastikan key "uid" sesuai dengan saat Mas melakukan GenerateToken
+			uid := fmt.Sprintf("%v", claims["uid"])
+
+			// Titipkan UID ke context agar bisa dipanggil di Controller pakai c.GetString("user_id")
+			c.Set("user_id", uid)
+		} else {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Failed to parse token claims"})
+			return
+		}
+
 		c.Next()
 	}
 }
