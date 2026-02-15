@@ -81,6 +81,7 @@ func LoginOrRegister(c *gin.Context) {
 		"token":  token,
 		"user":   user,
 		"subscription": gin.H{
+			// PERBAIKAN: Langsung masukkan variabelnya karena sudah bool
 			"is_premium":      user.IsPremium,
 			"trial_limit":     trialLimit,
 			"trial_usage":     trialUsage,
