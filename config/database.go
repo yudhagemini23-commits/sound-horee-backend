@@ -28,7 +28,13 @@ func ConnectDatabase() {
 	}
 
 	// Auto-migrate schema to match Go structs
-	err = database.AutoMigrate(&models.Profile{}, &models.Transaction{})
+	// [PERBAIKAN]: Menambahkan Payment dan NotificationRule agar tabelnya dibuat otomatis
+	err = database.AutoMigrate(
+		&models.Profile{},
+		&models.Transaction{},
+		&models.Payment{},
+		&models.NotificationRule{},
+	)
 	if err != nil {
 		log.Fatal("Fatal: Database migration failed. ", err)
 	}

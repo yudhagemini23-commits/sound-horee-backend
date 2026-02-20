@@ -35,5 +35,12 @@ func SetupRoutes(r *gin.Engine) {
 				// subscription.GET("/history", controllers.GetPaymentHistory) // Contoh kedepannya
 			}
 		}
+
+		configGroup := v1.Group("/config")
+		{
+			// Endpoint ini sengaja dibuat public (tanpa middleware Auth)
+			// agar Android bisa tarik kapan saja, atau Mas bisa pasang Auth jika mau.
+			configGroup.GET("/rules", controllers.GetNotificationRules)
+		}
 	}
 }
