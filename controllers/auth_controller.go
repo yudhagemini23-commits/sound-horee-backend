@@ -24,10 +24,20 @@ func LoginOrRegister(c *gin.Context) {
 		return
 	}
 
+	// --- TAMBAHAN LOGIC BYPASS TESTER ---
+	// Jika email adalah tester, kita paksa UID-nya agar selalu masuk ke akun yang sama
+	if input.Email == "tester@algoritmakitadigital.id" {
+		input.UID = "REVIEWER-GOOGLE-PLAY-001"
+		input.StoreName = "Toko Tester Google"
+		input.Category = "Digital"
+	}
+	// ------------------------------------
+
 	var user models.Profile
 	result := config.DB.Where("uid = ?", input.UID).First(&user)
 
 	if result.RowsAffected == 0 {
+		// Jika tester belum ada di DB, dia akan otomatis terbuat di sini
 		user = models.Profile{
 			UID:         input.UID,
 			Email:       input.Email,
@@ -35,6 +45,7 @@ func LoginOrRegister(c *gin.Context) {
 			PhoneNumber: input.PhoneNumber,
 			Category:    input.Category,
 			JoinedAt:    utils.NowMillis(),
+			IsPremium:   true, // Kasih akses premium langsung buat reviewer!
 		}
 		config.DB.Create(&user)
 	} else {
