@@ -1,15 +1,16 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"sound-horee-backend/config"
 	"sound-horee-backend/models"
+	"time" // Hanya menambah ini
 
 	"github.com/gin-gonic/gin"
 )
 
 // SyncProfile handles user registration and profile updates.
-// Strategy: Upsert (Insert if new, Update if exists).
 func SyncProfile(c *gin.Context) {
 	var input models.Profile
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -21,10 +22,17 @@ func SyncProfile(c *gin.Context) {
 	result := config.DB.First(&existing, "uid = ?", input.UID)
 
 	if result.RowsAffected == 0 {
-		// Create new profile
 		config.DB.Create(&input)
 	} else {
-		// Update existing profile details (excluding subscription status)
+		// --- TAMBAHAN LOGIK CHECK EXPIRED ---
+		now := time.Now().UnixMilli()
+		if existing.IsPremium && existing.PremiumExpiresAt > 0 && now > existing.PremiumExpiresAt {
+			existing.IsPremium = false
+			config.DB.Model(&existing).Update("is_premium", false)
+			fmt.Printf("Silent Check (Sync): %s expired\n", existing.Email)
+		}
+		// ------------------------------------
+
 		config.DB.Model(&existing).Updates(models.Profile{
 			Email:       input.Email,
 			StoreName:   input.StoreName,
@@ -33,7 +41,7 @@ func SyncProfile(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "data": input})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": existing})
 }
 
 // GetProfile fetches profile details, including subscription status.
@@ -45,6 +53,15 @@ func GetProfile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
+
+	// --- TAMBAHAN LOGIK CHECK EXPIRED ---
+	now := time.Now().UnixMilli()
+	if profile.IsPremium && profile.PremiumExpiresAt > 0 && now > profile.PremiumExpiresAt {
+		profile.IsPremium = false
+		config.DB.Model(&profile).Update("is_premium", false)
+		fmt.Printf("Silent Check (GetProfile): %s expired\n", profile.Email)
+	}
+	// ------------------------------------
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
 }
