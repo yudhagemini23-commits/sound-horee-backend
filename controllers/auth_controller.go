@@ -38,6 +38,8 @@ func LoginOrRegister(c *gin.Context) {
 
 	if result.RowsAffected == 0 {
 		// Jika tester belum ada di DB, dia akan otomatis terbuat di sini
+		isUserTester := (input.Email == "tester@algoritmakitadigital.id")
+
 		user = models.Profile{
 			UID:         input.UID,
 			Email:       input.Email,
@@ -45,7 +47,7 @@ func LoginOrRegister(c *gin.Context) {
 			PhoneNumber: input.PhoneNumber,
 			Category:    input.Category,
 			JoinedAt:    utils.NowMillis(),
-			IsPremium:   true, // Kasih akses premium langsung buat reviewer!
+			IsPremium:   isUserTester, // Kasih akses premium langsung buat reviewer!
 		}
 		config.DB.Create(&user)
 	} else {

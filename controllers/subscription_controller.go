@@ -10,8 +10,10 @@ import (
 )
 
 type UpgradeRequest struct {
-	// UserID dihapus dari sini karena kita ambil dari Token (Middleware)
-	PlanType string `json:"plan_type" binding:"required"`
+	UserID           string `json:"user_id"` // Jika masih dikirim dari client
+	PlanType         string `json:"plan_type" binding:"required"`
+	IAPPurchaseToken string `json:"iap_purchase_token"` // TAMBAHKAN INI
+	IAPOrderID       string `json:"iap_order_id"`       // TAMBAHKAN INI
 }
 
 func UpgradeToPremium(c *gin.Context) {
@@ -27,22 +29,25 @@ func UpgradeToPremium(c *gin.Context) {
 		return
 	}
 
+	// --- PROTEKSI 1: CEK APAKAH TOKEN SUDAH PERNAH DIPAKAI ---
+	var existingPayment models.Payment
+	checkToken := config.DB.Where("iap_purchase_token = ?", req.IAPPurchaseToken).First(&existingPayment)
+	if checkToken.RowsAffected > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Token pembelian ini sudah pernah digunakan"})
+		return
+	}
+
 	var duration time.Duration
 	var price float64
-	var dbPlanType string // Variabel bantuan untuk MySQL
+	var dbPlanType string
 
-	// STANDARISASI INPUT
 	switch req.PlanType {
-	case "weekly", "mingguan":
-		duration = 7 * 24 * time.Hour
-		price = 5000
-		dbPlanType = "weekly" // Sesuai ENUM MySQL
 	case "monthly", "bulanan":
 		duration = 30 * 24 * time.Hour
-		price = 10000
-		dbPlanType = "monthly" // Sesuai ENUM MySQL
+		price = 49000
+		dbPlanType = "monthly"
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Package not recognized"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Paket tidak dikenali"})
 		return
 	}
 
@@ -51,33 +56,34 @@ func UpgradeToPremium(c *gin.Context) {
 
 	tx := config.DB.Begin()
 
-	// 1. Update Profile
+	// 2. Update Profile User
 	if err := tx.Model(&models.Profile{}).Where("uid = ?", userID).Updates(map[string]interface{}{
 		"is_premium":         1,
 		"premium_expires_at": expiryDate,
 	}).Error; err != nil {
 		tx.Rollback()
-		c.JSON(500, gin.H{"error": "Failed to update profile"})
+		c.JSON(500, gin.H{"error": "Gagal update profile"})
 		return
 	}
 
-	// 2. Log Payment (Gunakan dbPlanType agar tidak error ENUM)
+	// 3. Simpan Log Pembayaran
 	paymentLog := models.Payment{
-		UserID:    userID,
-		PlanType:  dbPlanType, // Pakai "weekly" atau "monthly"
-		Amount:    price,
-		Status:    "success",
-		CreatedAt: now,
+		UserID:           userID,
+		PlanType:         dbPlanType,
+		Amount:           price,
+		Status:           "success",
+		IapPurchaseToken: req.IAPPurchaseToken,
+		IapOrderID:       req.IAPOrderID,
+		CreatedAt:        now,
+		UpdatedAt:        now, // Tambahkan ini agar tidak nol
 	}
 
 	if err := tx.Create(&paymentLog).Error; err != nil {
 		tx.Rollback()
-		// Error 500 Mas tadi berasal dari baris ini
-		c.JSON(500, gin.H{"error": "Failed to log payment audit: " + err.Error()})
+		c.JSON(500, gin.H{"error": "Gagal mencatat audit pembayaran"})
 		return
 	}
 
 	tx.Commit()
-
 	c.JSON(200, gin.H{"status": "success", "expiry_date": expiryDate})
 }
